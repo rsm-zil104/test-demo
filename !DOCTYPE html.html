@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TAM Prototype - Professional Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(22, 30, 45, 0.8);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent: #3b82f6;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-image: radial-gradient(circle at 100% 0%, #1e293b, #0b0f19 50%);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 26px;
+            background: linear-gradient(90deg, #93c5fd, #c4b5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #realtime-clock {
+            font-family: monospace;
+            font-size: 18px;
+            color: #10b981;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .full-width { grid-column: span 2; }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background-color: var(--accent);
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .chart-container { width: 100%; height: 400px; }
+
+        select {
+            background: #1e293b;
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 5px;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .hint { font-size: 11px; color: var(--text-muted); display: block; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>TAM Prototype</h1>
+        <div id="realtime-clock">Loading Time...</div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card full-width">
+            <div class="card-title">能源形式 & 总量分布走势 (Mar - Sep 2025)</div>
+            <div id="trendChart" class="chart-container"></div>
+        </div>
+
+        <div class="card full-width">
+            <div class="card-title">PV Market Forecast (2016 - 2026F)</div>
+            <div id="forecastChart" class="chart-container"></div>
+        </div>
+
+        <div class="card full-width">
+            <div class="card-header">
+                <div class="card-title">TAM Segment & Price Heatmap</div>
+                <div style="text-align: right;">
+                    <select id="tamTimeSelect" multiple size="2" style="width: 150px;" onchange="updateTamChart()">
+                        <option value="T1" selected>2025年3月</option>
+                        <option value="T2">2025年9月</option>
+                    </select>
+                    <span class="hint">按住 Ctrl/Cmd 可多选对比</span>
+                </div>
+            </div>
+            <div id="tamHeatmap" class="chart-container" style="height: 650px;"></div>
+        </div>
+
+        <div class="card full-width">
+            <div class="card-header">
+                <div class="card-title">Competitor CR5 Analysis</div>
+                <select id="cr5Selector" onchange="updateCr5Chart()">
+                    <option value="ET5">ET5</option>
+                    <option value="ET5T">ET5T</option>
+                </select>
+            </div>
+            <div id="cr5Chart" class="chart-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // 实时时间
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('realtime-clock').innerText = now.toLocaleString();
+        }
+        setInterval(updateClock, 1000); updateClock();
+
+        const commonOption = { backgroundColor: 'transparent', textStyle: { color: '#94a3b8' } };
+
+        // 1. 走势图
+        const trendChart = echarts.init(document.getElementById('trendChart'));
+        trendChart.setOption({
+            ...commonOption,
+            tooltip: { trigger: 'axis' },
+            legend: { top: 0, textStyle: { color: '#ccc' } },
+            xAxis: { type: 'category', data: ['25/03','25/04','25/05','25/06','25/07','25/08','25/09'] },
+            yAxis: [
+                { type: 'value', name: 'Volume', splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+                { type: 'value', name: 'Penetration', axisLabel: { formatter: '{value}%' }, splitLine: { show: false } }
+            ],
+            series: [
+                { name: 'ICE', type: 'bar', stack: 'T', data: [903096,824460,810200,850000,865944,887451,962248], itemStyle: { color: '#475569' } },
+                { name: 'BEV', type: 'bar', stack: 'T', data: [638878,549504,560100,620000,610636,703820,838246], itemStyle: { color: '#3b82f6' } },
+                { name: 'PHEV', type: 'bar', stack: 'T', data: [249418,234139,260000,310000,263082,296720,310500], itemStyle: { color: '#10b981' } },
+                { name: 'REEV', type: 'bar', stack: 'T', data: [80928,87028,123930,140050,102161,95952,138346], itemStyle: { color: '#8b5cf6' } },
+                { name: 'NEV Pene.', type: 'line', yAxisIndex: 1, data: [51.7, 51.3, 53.8, 55.7, 52.9, 55.2, 57.2], itemStyle: { color: '#f59e0b' } }
+            ]
+        });
+
+        // 2. PV Forecast
+        const forecastChart = echarts.init(document.getElementById('forecastChart'));
+        forecastChart.setOption({
+            ...commonOption,
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: ['2016','2017','2018','2019','2020','2021','2022','2023','2024','2025','2026F'] },
+            yAxis: { type: 'value', min: 18000000, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+            series: [{
+                type: 'line', smooth: true, symbolSize: 8,
+                lineStyle: { width: 3, color: '#6366f1' },
+                data: [23155316,23459141,22153127,21128254,19648286,20927527,20182691,21363921,23055935,22866185,21962356],
+                label: { show: true, formatter: (p) => (p.value/10000).toFixed(0) + 'w' }
+            }]
+        });
+
+        // 3. TAM Heatmap 逻辑
+        const tamChart = echarts.init(document.getElementById('tamHeatmap'));
+        const cols = ['个人', '个人兼顾家庭', '小家庭', '大家庭', '商务兼顾大家庭', '商务兼顾小家庭', '商务'];
+        const rows = ['100w+', '90-100w', '80-90w', '70-80w', '60-70w', '55-60w', '50-55w', '45-50w', '40-45w', '35-40w', '30-35w', '25-30w', '20-25w', '18-20w', '16-18w', '14-16w', '12-14w', '10-12w', '8-10w', '6-8w', '4-6w', '2-4w'].reverse();
+
+        function updateTamChart() {
+            const selected = Array.from(document.getElementById('tamTimeSelect').selectedOptions).map(o => o.value);
+            const isDelta = selected.length > 1;
+            
+            let data = [];
+            for (let i = 0; i < cols.length; i++) {
+                for (let j = 0; j < rows.length; j++) {
+                    let base = Math.random() * 50000;
+                    data.push([i, j, isDelta ? (Math.random() * 10000 - 5000) : base]);
+                }
+            }
+
+            tamChart.setOption({
+                ...commonOption,
+                tooltip: { position: 'top' },
+                grid: { top: '80px', bottom: '60px', left: '80px', right: '20px' },
+                xAxis: { type: 'category', data: cols, position: 'top', axisLabel: { interval: 0, rotate: 0, color: '#e2e8f0' } },
+                yAxis: { type: 'category', data: rows, axisLabel: { color: '#e2e8f0' } },
+                visualMap: {
+                    min: isDelta ? -10000 : 0,
+                    max: isDelta ? 10000 : 50000,
+                    show: false,
+                    inRange: { color: isDelta ? ['#ef4444', '#1e293b', '#10b981'] : ['#0f172a', '#1e3a8a', '#3b82f6'] }
+                },
+                series: [{
+                    type: 'heatmap',
+                    data: data,
+                    label: {
+                        show: true,
+                        formatter: (p) => {
+                            const v = p.data[2];
+                            if(v === 0) return '-';
+                            const kVal = (v/1000).toFixed(1) + 'k';
+                            return isDelta && v > 0 ? '+' + kVal : kVal;
+                        },
+                        fontSize: 10,
+                        color: '#fff'
+                    },
+                    itemStyle: { borderColor: '#0b0f19', borderWidth: 1 }
+                }]
+            });
+        }
+        updateTamChart();
+
+        // 4. CR5
+        const cr5Chart = echarts.init(document.getElementById('cr5Chart'));
+        const cr5Data = {
+            'ET5': { y: ['Model 3', 'Zeekr 007', 'ET5', 'Xpeng P7i', 'Seal'], v: [12500, 8400, 6800, 4200, 3500] },
+            'ET5T': { y: ['Zeekr 001', 'Model Y', 'ET5T', 'Denza N7', 'Avatr 12'], v: [9800, 8500, 5600, 3100, 2400] }
+        };
+
+        function updateCr5Chart() {
+            const m = document.getElementById('cr5Selector').value;
+            const d = cr5Data[m];
+            cr5Chart.setOption({
+                ...commonOption,
+                grid: { left: '12%', right: '10%', top: '5%', bottom: '5%' },
+                xAxis: { type: 'value', show: false },
+                yAxis: { type: 'category', data: [...d.y].reverse(), axisLine: {show:false} },
+                series: [{
+                    type: 'bar', data: [...d.v].reverse(),
+                    itemStyle: { color: (p) => p.name === m ? '#3b82f6' : '#475569', borderRadius: 4 },
+                    label: { show: true, position: 'right', color: '#fff' }
+                }]
+            });
+        }
+        updateCr5Chart();
+
+        window.onresize = () => { [trendChart, forecastChart, tamChart, cr5Chart].forEach(c => c.resize()); };
+    </script>
+</body>
+</html>
